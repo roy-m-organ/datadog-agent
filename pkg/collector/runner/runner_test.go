@@ -83,14 +83,14 @@ func addTestStat(checkID string) *check.Stats {
 
 func TestNewRunner(t *testing.T) {
 	r := NewRunner()
-	assert.NotNil(t, r.pending)
-	assert.NotNil(t, r.runningChecks)
+	assert.NotNil(t, r.pendingCheckChan)
+	assert.NotNil(t, r.checksTracker.RunningChecks())
 }
 
 func TestStop(t *testing.T) {
 	r := NewRunner()
 	r.Stop()
-	_, ok := <-r.pending
+	_, ok := <-r.pendingCheckChan
 	assert.False(t, ok)
 
 	// calling Stop on a stopped runner should be a noop
@@ -107,8 +107,8 @@ func TestWork(t *testing.T) {
 	c1 := newTestCheck(false, "1")
 	c2 := newTestCheck(true, "2")
 
-	r.pending <- c1
-	r.pending <- c2
+	r.pendingCheckChan <- c1
+	r.pendingCheckChan <- c2
 
 	select {
 	case <-c1.done:
@@ -121,8 +121,8 @@ func TestWork(t *testing.T) {
 	// fake a check is already running
 	r = NewRunner()
 	c3 := newTestCheck(false, "3")
-	r.runningChecks[c3.ID()] = c3
-	r.pending <- c3
+	r.checksTracker.AddCheck(c3)
+	r.pendingCheckChan <- c3
 	// wait to be sure the worker tried to run the check
 	time.Sleep(100 * time.Millisecond)
 	assert.False(t, c3.HasRun())
@@ -137,27 +137,30 @@ func TestLogging(t *testing.T) {
 	c := newTestCheck(false, "1")
 	s := addTestStat("TestCheck:1")
 	s.TotalRuns = 0
-	checkStats.Stats[c.String()] = make(map[check.ID]*check.Stats)
-	checkStats.Stats[c.String()][c.ID()] = s
+	expvarCheckStats.Stats[c.String()] = make(map[check.ID]*check.Stats)
+	expvarCheckStats.Stats[c.String()][c.ID()] = s
 
-	doLog, lastLog := shouldLog(c.ID())
-	assert.True(t, doLog)
-	assert.False(t, lastLog)
+	// TODO: Move this to the worker test
+	// doLog, lastLog := shouldLog(c.ID())
+	// assert.True(t, doLog)
+	// assert.False(t, lastLog)
 
-	s.TotalRuns = 5
-	doLog, lastLog = shouldLog(c.ID())
-	assert.True(t, doLog)
-	assert.True(t, lastLog)
+	// s.TotalRuns = 5
+	// doLog, lastLog = shouldLog(c.ID())
+	// assert.True(t, doLog)
+	// assert.True(t, lastLog)
 
-	s.TotalRuns = 6
-	doLog, lastLog = shouldLog(c.ID())
-	assert.False(t, doLog)
-	assert.False(t, lastLog)
+	// s.TotalRuns = 6
+	// doLog, lastLog = shouldLog(c.ID())
+	// assert.False(t, doLog)
+	// assert.False(t, lastLog)
 
-	s.TotalRuns = 20
-	doLog, lastLog = shouldLog(c.ID())
-	assert.True(t, doLog)
-	assert.False(t, lastLog)
+	// s.TotalRuns = 20
+	// doLog, lastLog = shouldLog(c.ID())
+	// assert.True(t, doLog)
+	// assert.False(t, lastLog)
+
+	assert.Fail(t, "IMPLEMENT ME")
 
 	r.Stop()
 }
@@ -179,26 +182,12 @@ func TestStopCheck(t *testing.T) {
 	assert.Nil(t, err)
 
 	c1 := newTestCheck(false, "1")
-	r.runningChecks[c1.ID()] = c1
+	r.checksTracker.AddCheck(c1)
 	err = r.StopCheck(c1.ID())
 	assert.Nil(t, err)
 
 	c2 := &TimingoutCheck{TestCheck: *newTestCheck(false, "2")}
-	r.runningChecks[c2.ID()] = c2
+	r.checksTracker.AddCheck(c2)
 	err = r.StopCheck(c2.ID())
 	assert.Equal(t, "timeout during stop operation on check id TestCheck:2", err.Error())
-}
-
-func TestGetCheckStats(t *testing.T) {
-	addTestStat("StatsCheck:99")
-
-	m := GetCheckStats()
-
-	// The result should be a clone and thus not pointer-equal..
-	require.True(t, &m != &checkStats.Stats, "should not be pointer-equal")
-
-	// ..but should have the data for the check we just added (and possibly for
-	// other checks in this test package)
-	require.True(t, m["StatsCheck"] != nil, "should be a StatsCheck map")
-	require.True(t, m["StatsCheck"]["StatsCheck:99"] != nil, "should be a StatsCheck:99 check")
 }
