@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	model "github.com/DataDog/agent-payload/process"
-	dnspkg "github.com/DataDog/datadog-agent/pkg/network/dns"
+	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -197,7 +197,7 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 	conns[1].DnsStatsByDomainByQueryType = map[int32]*model.DNSStatsByQueryType{
 		0: {
 			DnsStatsByQueryType: map[int32]*model.DNSStats{
-				int32(dnspkg.TypeA): {
+				int32(dns.TypeA): {
 					DnsTimeouts: 1,
 				},
 			},
@@ -206,14 +206,14 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 	conns[2].DnsStatsByDomainByQueryType = map[int32]*model.DNSStatsByQueryType{
 		0: {
 			DnsStatsByQueryType: map[int32]*model.DNSStats{
-				int32(dnspkg.TypeA): {
+				int32(dns.TypeA): {
 					DnsTimeouts: 2,
 				},
 			},
 		},
 		2: {
 			DnsStatsByQueryType: map[int32]*model.DNSStats{
-				int32(dnspkg.TypeA): {
+				int32(dns.TypeA): {
 					DnsTimeouts: 3,
 				},
 			},
@@ -222,25 +222,25 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 	conns[3].DnsStatsByDomainByQueryType = map[int32]*model.DNSStatsByQueryType{
 		1: {
 			DnsStatsByQueryType: map[int32]*model.DNSStats{
-				int32(dnspkg.TypeA): {
+				int32(dns.TypeA): {
 					DnsTimeouts: 4,
 				},
 			},
 		},
 		2: {
 			DnsStatsByQueryType: map[int32]*model.DNSStats{
-				int32(dnspkg.TypeA): {
+				int32(dns.TypeA): {
 					DnsTimeouts: 5,
 				},
 			},
 		},
 	}
-	dns := map[string]*model.DNSEntry{}
+	dnsmap := map[string]*model.DNSEntry{}
 
 	cfg := config.NewDefaultAgentConfig(false)
 	cfg.MaxConnsPerMessage = 1
 
-	chunks := batchConnections(cfg, 0, conns, dns, "nid", nil, nil, domains, nil)
+	chunks := batchConnections(cfg, 0, conns, dnsmap, "nid", nil, nil, domains, nil)
 
 	assert.Len(t, chunks, 4)
 	total := 0
@@ -259,7 +259,7 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 			conn := connections.Connections[0]
 			val, ok := conn.DnsStatsByDomainByQueryType[0]
 			assert.True(t, ok)
-			assert.Equal(t, val.DnsStatsByQueryType[int32(dnspkg.TypeA)].DnsTimeouts, uint32(1))
+			assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(1))
 		case 2:
 			assert.Equal(t, len(domaindb), 2)
 			assert.Contains(t, domaindb, domains[0])
@@ -271,11 +271,11 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 			conn := connections.Connections[0]
 			val, ok := conn.DnsStatsByDomainByQueryType[indexzero]
 			assert.True(t, ok)
-			assert.Equal(t, val.DnsStatsByQueryType[int32(dnspkg.TypeA)].DnsTimeouts, uint32(2))
+			assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(2))
 
 			val, ok = conn.DnsStatsByDomainByQueryType[indextwo]
 			assert.True(t, ok)
-			assert.Equal(t, val.DnsStatsByQueryType[int32(dnspkg.TypeA)].DnsTimeouts, uint32(3))
+			assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(3))
 
 		case 3:
 			assert.Equal(t, len(domaindb), 2)
@@ -288,11 +288,11 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 			conn := connections.Connections[0]
 			val, ok := conn.DnsStatsByDomainByQueryType[indexone]
 			assert.True(t, ok)
-			assert.Equal(t, val.DnsStatsByQueryType[int32(dnspkg.TypeA)].DnsTimeouts, uint32(4))
+			assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(4))
 
 			val, ok = conn.DnsStatsByDomainByQueryType[indextwo]
 			assert.True(t, ok)
-			assert.Equal(t, val.DnsStatsByQueryType[int32(dnspkg.TypeA)].DnsTimeouts, uint32(5))
+			assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(5))
 		}
 	}
 	assert.Equal(t, 4, total)
