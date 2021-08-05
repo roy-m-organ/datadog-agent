@@ -8,11 +8,14 @@
 package secrets
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"io"
 	"io/ioutil"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,6 +31,7 @@ const (
 
 func init() {
 	SecretHelperCmd.AddCommand(readSecretCmd)
+	SecretHelperCmd.AddCommand(readSecretsFromKubeCmd)
 }
 
 // SecretHelperCmd implements secrets backend helper commands
@@ -154,4 +158,80 @@ func readSecretFile(path string) (string, error) {
 		return "", err
 	}
 	return string(bytes), nil
+}
+
+var readSecretsFromKubeCmd = &cobra.Command{
+	Use:   "read_kube_secrets",
+	Short: "Read Kubernetes secrets",
+	Long:  ``,
+	Args:  cobra.ArbitraryArgs, // TODO: needed? Only search in these secrets
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return readKubeSecrets(os.Stdin, os.Stdout, args)
+	},
+}
+
+func readKubeSecrets(r io.Reader, w io.Writer, secrets []string) error {
+	// TODO: de-duplicate lines to read and parse input
+	in, err := ioutil.ReadAll(r)
+	if err != nil {
+		return err
+	}
+
+	var request secretsRequest
+	err = json.Unmarshal(in, &request)
+	if err != nil {
+		return errors.New("failed to unmarshal json input")
+	}
+
+	version := splitVersion(request.Version)
+	compatVersion := splitVersion(s.PayloadVersion)
+	if version[0] != compatVersion[0] {
+		return fmt.Errorf("incompatible protocol version %q", request.Version)
+	}
+
+	if len(request.Secrets) == 0 {
+		return errors.New("no secrets listed in input")
+	}
+
+	// TODO: it's duplicated up to here
+
+	kubeClient, err := apiserver.GetAPIClient()
+	if err != nil {
+		return err
+	}
+
+	response := map[string]s.Secret{}
+	for _, name := range request.Secrets {
+		response[name] = readKubeSecret(kubeClient, name)
+	}
+
+	// TODO: duplicated from here too
+
+	out, err := json.Marshal(response)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(out)
+	return err
+}
+
+func readKubeSecret(kubeClient *apiserver.APIClient, name string) s.Secret {
+	// TODO: for now assume that the name follows the format: namespace.secretName.key
+
+	splitName := strings.Split(name, ".")
+	secretNamespace := splitName[0]
+	secretName := splitName[1]
+	secretKey := splitName[2]
+
+	secret, err := kubeClient.Cl.CoreV1().Secrets(secretNamespace).Get(context.TODO(), secretName, metav1.GetOptions{})
+	if err != nil {
+		return s.Secret{ErrorMsg: err.Error()}
+	}
+
+	value, ok := secret.Data[secretKey]
+	if !ok {
+		return s.Secret{ErrorMsg: "key not found in secret"}
+	}
+
+	return s.Secret{Value: string(value)}
 }

@@ -131,7 +131,7 @@ COPY --from=extract /output/ /
 # S6 entrypoint, service definitions, healthcheck probe
 COPY s6-services /etc/services.d/
 COPY cont-init.d /etc/cont-init.d/
-COPY probe.sh initlog.sh secrets-helper/readsecret.py secrets-helper/readsecret.sh /
+COPY probe.sh initlog.sh secrets-helper/readsecret.py secrets-helper/readsecret.sh secrets-helper/readsecret_k8s.sh /
 
 # Extract s6-overlay
 #
@@ -156,7 +156,9 @@ RUN tar xzf s6.tgz -C / --exclude="./bin" \
  && chown root:root /readsecret.py \
  && chmod 500 /readsecret.py \
  && chown root:root /readsecret.sh \
- && chmod 500 /readsecret.sh
+ && chmod 500 /readsecret.sh \
+ && chown root:root /readsecret_k8s.sh \
+ && chmod 500 /readsecret_k8s.sh
 
 # Update links to python binaries
 
