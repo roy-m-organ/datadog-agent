@@ -762,3 +762,20 @@ func getMediaType(req *http.Request) string {
 	}
 	return mt
 }
+
+// setCommonHeaders enriches requests with headers setting custom container and additional tags and overwrites the
+// user agent header as well as sets the Via header.
+func setCommonHeaders(h *http.Header, tags string) {
+	h.Set("Via", fmt.Sprintf("trace-agent %s", info.Version))
+	if h.Get("User-Agent") != "" {
+		// explicitly disable User-Agent so it's not set to the default value
+		// that net/http gives it: Go-http-client/1.1
+		// See https://codereview.appspot.com/7532043
+		h.Set("User-Agent", "")
+	}
+	containerID := h.Get(headerContainerID)
+	if ctags := getContainerTags(containerID); ctags != "" {
+		h.Set("X-Datadog-Container-Tags", ctags)
+	}
+	h.Set("X-Datadog-Additional-Tags", tags)
+}
