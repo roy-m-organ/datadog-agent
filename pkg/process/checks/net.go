@@ -198,8 +198,8 @@ func convertDNSEntry(dnstable map[string]*model.DNSDatabaseEntry, namemap map[st
 
 	}
 	dnstable[ip] = dbentry
-
 }
+
 func remapDNSStatsByDomainByQueryType(c *model.Connection, namemap map[string]int32, namedb *[]string, dnslist []string) {
 	old := c.DnsStatsByDomainByQueryType
 	c.DnsStatsByDomainByQueryType = make(map[int32]*model.DNSStatsByQueryType)
@@ -310,15 +310,13 @@ func batchConnections(
 			GroupId:         groupID,
 			GroupSize:       groupSize,
 			ContainerForPid: ctrIDForPID,
-			//EncodedDNS:        dnsEncoder.Encode(batchDNS),
 			DomainDb: &model.DomainDatabase{
 				EncodedDomains: dnsEncoder.EncodeDomainDatabase(namedb),
 			},
 			EncodedDnsLookups: dnsEncoder.EncodeMapped(batchDNS),
 			IndexedDomains:    batchDomainIndexes,
 			ContainerHostType: cfg.ContainerHostType,
-			//Domains:           batchDomains,
-			Routes: batchRoutes,
+			Routes:            batchRoutes,
 		}
 
 		// Add OS telemetry
